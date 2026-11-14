@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score, KFold
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_absolute_error
 
 df = pd.read_csv("cleaned_data2.csv")
 
@@ -79,3 +82,51 @@ st.bar_chart(filtered["license"].value_counts())
 st.header("Data Preview")
 st.write(f"Showing {len(filtered)} models")
 st.dataframe(filtered)
+
+# ---------- Prediction model ----------
+st.header("Score Prediction")
+st.write("A Linear Regression model predicts a model's score from its cost, "
+         "output tokens, sessions, and observations.")
+
+features = ["cost_p50", "output_tokens_p50", "session_count", "observation_count"]
+X = df[features]
+y = df["score"]
+
+@st.cache_resource
+def train_model():
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42)
+    model = LinearRegression().fit(X_train, y_train)
+    pred = model.predict(X_test)
+    r2 = r2_score(y_test, pred)
+    mae = mean_absolute_error(y_test, pred)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv = cross_val_score(LinearRegression(), X, y, cv=kf, scoring="r2").mean()
+    final_model = LinearRegression().fit(X, y)
+    return final_model, r2, mae, cv
+
+model, r2, mae, cv = train_model()
+
+m1, m2, m3 = st.columns(3)
+m1.metric("R2 (test)", f"{r2:.2f}")
+m2.metric("MAE", f"{mae:.3f}")
+m3.metric("R2 (cross validation)", f"{cv:.2f}")
+
+st.subheader("Try it")
+c1, c2 = st.columns(2)
+cost = c1.slider("Cost per task", float(X["cost_p50"].min()),
+                 float(X["cost_p50"].max()), float(X["cost_p50"].median()))
+tokens = c2.slider("Output tokens per task", int(X["output_tokens_p50"].min()),
+                   int(X["output_tokens_p50"].max()),
+                   int(X["output_tokens_p50"].median()))
+c3, c4 = st.columns(2)
+sessions = c3.slider("Session count", int(X["session_count"].min()),
+                     int(X["session_count"].max()),
+                     int(X["session_count"].median()))
+obs = c4.slider("Observation count", int(X["observation_count"].min()),
+                int(X["observation_count"].max()),
+                int(X["observation_count"].median()))
+
+new = pd.DataFrame([[cost, tokens, sessions, obs]], columns=features)
+st.metric("Predicted score", f"{model.predict(new)[0]:.3f}")
+st.caption("The dataset is small (59 models), so this is only a rough estimate.")
