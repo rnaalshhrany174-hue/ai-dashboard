@@ -66,9 +66,11 @@ st.subheader("Top 10 Models by Score")
 top10 = filtered.nlargest(10, "score").set_index("model_name")["score"]
 st.bar_chart(top10, horizontal=True)
 
-st.subheader("Is a more expensive model a better model?")
-cost_data = filtered.dropna(subset=["cost_per_task_p50"])
-st.scatter_chart(cost_data, x="cost_per_task_p50", y="score", color="organization")
+cost_col = next((c for c in df.columns if "cost" in c.lower()), None)
+if cost_col:
+    st.subheader("Is a more expensive model a better model?")
+    cost_data = filtered.dropna(subset=[cost_col])
+    st.scatter_chart(cost_data, x=cost_col, y="score", color="organization")
 
 st.subheader("Number of Models by License")
 st.bar_chart(filtered["license"].value_counts())
